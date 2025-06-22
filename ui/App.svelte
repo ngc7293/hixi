@@ -107,7 +107,7 @@
     map = L.map(mapContainer).setView([0, 0], 2);
     L.tileLayer('/map/{z}/{x}/{y}', {
       maxZoom: 19,
-      attribution: '© Mapbox'
+      attribution: `© <a href="https://www.mapbox.com/about/maps">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> <strong><a href="https://apps.mapbox.com/feedback/" target="_blank">Improve this map</a></strong>`
     }).addTo(map);
 
     fetch('/stations')

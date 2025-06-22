@@ -105,9 +105,9 @@
 
   onMount(() => {
     map = L.map(mapContainer).setView([0, 0], 2);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('/map/{z}/{x}/{y}', {
       maxZoom: 19,
-      attribution: '© OpenStreetMap contributors'
+      attribution: '© Mapbox'
     }).addTo(map);
 
     fetch('/stations')

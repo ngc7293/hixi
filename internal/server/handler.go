@@ -2,8 +2,11 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"log/slog"
@@ -13,7 +16,8 @@ import (
 )
 
 type Handler struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	mapUrl string
 }
 
 func (api *Handler) ListStation(w http.ResponseWriter, r *http.Request) {
@@ -223,6 +227,39 @@ func (api *Handler) GetStation(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (api *Handler) MapProxy(w http.ResponseWriter, r *http.Request) {
+	finalUrl := strings.Replace(api.mapUrl, "{z}", r.PathValue("z"), 1)
+	finalUrl = strings.Replace(finalUrl, "{x}", r.PathValue("x"), 1)
+	finalUrl = strings.Replace(finalUrl, "{y}", r.PathValue("y"), 1)
+
+	response, err := http.Get(finalUrl)
+
+	if err != nil {
+		slog.Error("failed to fetch map tile", "path", r.URL.Path, "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		slog.Error("failed to fetch map tile", "path", r.URL.Path, "status", response.Status)
+		http.Error(w, "map tile not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", response.Header.Get("Content-Type"))
+	w.Header().Set("Cache-Control", "max-age=43200, public")
+	w.WriteHeader(response.StatusCode)
+
+	_, err = io.Copy(w, response.Body)
+
+	if err != nil {
+		slog.Error("failed to write map tile response", "path", r.URL.Path, "error", err)
+		return
+	}
+}
+
 func (api *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	err := api.pool.Ping(r.Context())
 
@@ -241,11 +278,18 @@ func (api *Handler) Health(w http.ResponseWriter, r *http.Request) {
 }
 
 func Serve(pool *pgxpool.Pool) error {
+	mapUrl, ok := os.LookupEnv("MAP_URL")
+
+	if !ok {
+		return fmt.Errorf("MAP_URL environment variable is not set")
+	}
+
 	mux := http.NewServeMux()
-	api := &Handler{pool: pool}
+	api := &Handler{pool: pool, mapUrl: mapUrl}
 
 	mux.HandleFunc("/stations", api.ListStation)
 	mux.HandleFunc("/stations/{stationId}", api.GetStation)
+	mux.HandleFunc("/map/{z}/{x}/{y}", api.MapProxy)
 	mux.HandleFunc("/health", api.Health)
 
 	fs := http.FileServerFS(os.DirFS("dist/"))

@@ -7,12 +7,21 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/ngc7293/hixi/pkg/spec"
-	"github.com/ngc7293/hixi/pkg/spec/v1_0"
+	"github.com/ngc7293/hixi/pkg/gbfs"
+	"github.com/ngc7293/hixi/pkg/gbfs/v1_0"
 )
 
-func getFeedUrl(data *spec.GBFSDiscoveryLanguage, feedName string) (string, bool) {
+func coalesce[T any](pointer *T, def T) T {
+	if pointer != nil {
+		return *pointer
+	}
+
+	return def
+}
+
+func getFeedUrl(data *gbfs.GBFSDiscoveryLanguage, feedName string) (string, bool) {
 	if data == nil {
 		return "", false
 	}
@@ -26,7 +35,7 @@ func getFeedUrl(data *spec.GBFSDiscoveryLanguage, feedName string) (string, bool
 	return "", false
 }
 
-func FindFeedURLWithLanguage(discovery spec.GBFSDiscoveryData, feedName string, preferLanguage string) (string, string, error) {
+func FindFeedURLWithLanguage(discovery gbfs.GBFSDiscoveryData, feedName string, preferLanguage string) (string, string, error) {
 	if data, ok := discovery[preferLanguage]; ok {
 		if url, found := getFeedUrl(&data, feedName); found {
 			return url, preferLanguage, nil
@@ -72,14 +81,14 @@ func fetchStationLastReportedOrInsert(tx pgx.Tx, stationID string) (*time.Time, 
 	return &lastReported, nil
 }
 
-func SyncStationStatusOnce(conn *pgx.Conn, url string) (int64, error) {
+func FetchStationStatusOnce(pool *pgxpool.Pool, url string) (int64, error) {
 	stationStatus, err := FetchDocument[v1_0.StationStatusData](url)
 
 	if err != nil {
 		return 0, err
 	}
 
-	tx, err := conn.Begin(context.Background())
+	tx, err := pool.Begin(context.Background())
 
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
@@ -96,6 +105,13 @@ func SyncStationStatusOnce(conn *pgx.Conn, url string) (int64, error) {
 
 		if lastReported != nil && !time.Unix(station.LastReported, 0).After(*lastReported) {
 			continue
+		}
+
+		// Fix up data
+		station.NumBikesAvailable = station.NumBikesAvailable - coalesce(station.NumEbikesAvailable, 0)
+
+		if station.NumBikesDisabled != nil {
+			*station.NumBikesDisabled = *station.NumBikesDisabled - coalesce(station.NumEbikesDisabled, 0)
 		}
 
 		_, err = tx.Exec(
@@ -143,17 +159,9 @@ func SyncStationStatusOnce(conn *pgx.Conn, url string) (int64, error) {
 	return stationStatus.TTL, nil
 }
 
-func SyncStationStatus(dbUrl string, feedUrl string) error {
-	conn, err := pgx.Connect(context.Background(), dbUrl)
-
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	defer conn.Close(context.Background())
-
+func FetchStationStatusLoop(pool *pgxpool.Pool, feedUrl string) error {
 	for {
-		ttl, err := SyncStationStatusOnce(conn, feedUrl)
+		ttl, err := FetchStationStatusOnce(pool, feedUrl)
 
 		if err != nil {
 			return fmt.Errorf("failed to sync station status: %w", err)

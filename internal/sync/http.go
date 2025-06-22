@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/ngc7293/hixi/pkg/spec"
+	"github.com/ngc7293/hixi/pkg/gbfs"
 )
 
-func FetchDocument[DataType any](url string) (*spec.GBFSDocument[DataType], error) {
+func FetchDocument[DataType any](url string) (*gbfs.GBFSDocument[DataType], error) {
 	slog.Info("fetch document", "method", "get", "url", url)
 	resp, err := http.Get(url)
 
@@ -23,7 +23,7 @@ func FetchDocument[DataType any](url string) (*spec.GBFSDocument[DataType], erro
 		return nil, fmt.Errorf("failed to fetch document: %w", err)
 	}
 
-	document := spec.GBFSDocument[DataType]{}
+	document := gbfs.GBFSDocument[DataType]{}
 	err = json.NewDecoder(resp.Body).Decode(&document)
 
 	if err != nil {

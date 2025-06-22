@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/ngc7293/hixi/pkg/spec/v1_0"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ngc7293/hixi/pkg/gbfs/v1_0"
 )
 
-func SyncStationInformationOnce(conn *pgx.Conn, url string) (int64, error) {
+func FetchStationInformationOnce(pool *pgxpool.Pool, url string) (int64, error) {
 	stationInformation, err := FetchDocument[v1_0.StationInformationData](url)
 
 	if err != nil {
 		return 0, err
 	}
 
-	tx, err := conn.Begin(context.Background())
+	tx, err := pool.Begin(context.Background())
 
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
@@ -31,19 +31,23 @@ func SyncStationInformationOnce(conn *pgx.Conn, url string) (int64, error) {
 			INSERT INTO "public"."station" (
 				"external_id",
 				"name",
-				"location"
+				"location",
+                "capacity"
 			) VALUES (
 				$1,
 				$2,
-			 	$3
+			 	$3,
+				$4
 			) ON CONFLICT ("external_id") DO UPDATE SET
 				"external_id" = excluded."external_id",
 				"name" =  excluded."name",
-				"location" =  excluded."location"
+				"location" =  excluded."location",
+				"capacity" =  excluded."capacity"
 			`,
 			station.StationID,
 			station.Name,
 			fmt.Sprintf("POINT(%f %f)", station.Lon, station.Lat),
+			station.Capacity,
 		)
 
 		if err != nil {
@@ -60,17 +64,9 @@ func SyncStationInformationOnce(conn *pgx.Conn, url string) (int64, error) {
 	return stationInformation.TTL, nil
 }
 
-func SyncStationInformation(dbUrl string, feedUrl string) error {
-	conn, err := pgx.Connect(context.Background(), dbUrl)
-
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	defer conn.Close(context.Background())
-
+func FetchStationInformationLoop(pool *pgxpool.Pool, feedUrl string) error {
 	for {
-		ttl, err := SyncStationInformationOnce(conn, feedUrl)
+		ttl, err := FetchStationInformationOnce(pool, feedUrl)
 
 		if err != nil {
 			return fmt.Errorf("failed to sync station information: %w", err)

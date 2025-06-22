@@ -1,4 +1,4 @@
-package spec
+package gbfs
 
 type GBFSDocument[DataType any] struct {
 	LastUpdated int64    `json:"last_updated"`

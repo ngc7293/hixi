@@ -3,20 +3,20 @@ package sync
 import (
 	"testing"
 
-	"github.com/ngc7293/hixi/pkg/spec"
+	"github.com/ngc7293/hixi/pkg/gbfs"
 )
 
 func TestGetStationStatusURL(t *testing.T) {
 	tests := []struct {
 		name    string
-		data    *spec.GBFSDiscoveryLanguage
+		data    *gbfs.GBFSDiscoveryLanguage
 		wantURL string
 		wantOk  bool
 	}{
 		{
 			name: "station_status feed exists",
-			data: &spec.GBFSDiscoveryLanguage{
-				Feeds: []spec.GBFSFeed{
+			data: &gbfs.GBFSDiscoveryLanguage{
+				Feeds: []gbfs.GBFSFeed{
 					{Name: "system_information", URL: "https://example.com/system_information.json"},
 					{Name: "station_status", URL: "https://example.com/station_status.json"},
 					{Name: "station_information", URL: "https://example.com/station_information.json"},
@@ -27,8 +27,8 @@ func TestGetStationStatusURL(t *testing.T) {
 		},
 		{
 			name: "station_status feed does not exist",
-			data: &spec.GBFSDiscoveryLanguage{
-				Feeds: []spec.GBFSFeed{
+			data: &gbfs.GBFSDiscoveryLanguage{
+				Feeds: []gbfs.GBFSFeed{
 					{Name: "system_information", URL: "https://example.com/system_information.json"},
 					{Name: "station_information", URL: "https://example.com/station_information.json"},
 				},
@@ -38,8 +38,8 @@ func TestGetStationStatusURL(t *testing.T) {
 		},
 		{
 			name: "empty feeds",
-			data: &spec.GBFSDiscoveryLanguage{
-				Feeds: []spec.GBFSFeed{},
+			data: &gbfs.GBFSDiscoveryLanguage{
+				Feeds: []gbfs.GBFSFeed{},
 			},
 			wantURL: "",
 			wantOk:  false,
@@ -52,8 +52,8 @@ func TestGetStationStatusURL(t *testing.T) {
 		},
 		{
 			name: "station_status is the only feed",
-			data: &spec.GBFSDiscoveryLanguage{
-				Feeds: []spec.GBFSFeed{
+			data: &gbfs.GBFSDiscoveryLanguage{
+				Feeds: []gbfs.GBFSFeed{
 					{Name: "station_status", URL: "https://example.com/only_station_status.json"},
 				},
 			},
